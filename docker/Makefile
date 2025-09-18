@@ -3,15 +3,32 @@ NOVNC:=ghcr.io/ucmercedrobotics/docker-novnc
 IMAGE:=ghcr.io/ucmercedrobotics/mrtp
 
 # Automatic Docker platform detection based on host architecture
-UNAME_M := $(shell uname -m)
-ifeq ($(UNAME_M),x86_64)
-    PLATFORM := linux/amd64
-else ifeq ($(UNAME_M),arm64)
-    PLATFORM := linux/arm64
-else ifeq ($(UNAME_M),aarch64)
-    PLATFORM := linux/arm64
+ifeq ($(OS),Windows_NT)
+    # Windows - use PROCESSOR_ARCHITECTURE environment variable
+    ARCH := $(PROCESSOR_ARCHITECTURE)
+    ifeq ($(ARCH),AMD64)
+        PLATFORM := linux/amd64
+    else ifeq ($(ARCH),ARM64)
+        PLATFORM := linux/arm64
+    else
+        PLATFORM := linux/amd64
+    endif
+	CURRENT_DIR := $(shell cd)
+    HOME_DIR := $(USERPROFILE)
 else
-    PLATFORM := linux/amd64
+    # Unix/Linux - use uname
+    UNAME_M := $(shell uname -m)
+    ifeq ($(UNAME_M),x86_64)
+        PLATFORM := linux/amd64
+    else ifeq ($(UNAME_M),arm64)
+        PLATFORM := linux/arm64
+    else ifeq ($(UNAME_M),aarch64)
+        PLATFORM := linux/arm64
+    else
+        PLATFORM := linux/amd64
+    endif
+	CURRENT_DIR := $(shell pwd)
+    HOME_DIR := $(HOME)
 endif
 
 PLATFORM_ARG := --platform $(PLATFORM)
@@ -36,8 +53,8 @@ bash:
 	docker run -it --rm \
 	--net=host \
 	--privileged \
-	-v $(PWD)/../MRTP:/${WORKSPACE}/MRTP:Z \
-	-v $(HOME)/.ssh:/root/.ssh:ro \
+	-v "$(CURRENT_DIR)/..":/${WORKSPACE}:Z \
+	-v "$(HOME_DIR)/.ssh":/root/.ssh:ro \
 	${IMAGE} bash
 
 clean:
