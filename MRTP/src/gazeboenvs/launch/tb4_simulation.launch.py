@@ -29,7 +29,7 @@ from launch.actions import (
     RegisterEventHandler,
 )
 from launch.conditions import IfCondition
-from launch.event_handlers import OnShutdown
+from launch.event_handlers import OnShutdown, OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 
@@ -218,10 +218,18 @@ def generate_launch_description():
     world_sdf = tempfile.mktemp(prefix='nav2_', suffix='.sdf')
     world_sdf_xacro = ExecuteProcess(
         cmd=['xacro', '-o', world_sdf, ['headless:=', headless], world])
+
     gazebo_server = ExecuteProcess(
         cmd=['gz', 'sim', '-r', '-s', world_sdf],
         output='screen',
         condition=IfCondition(use_simulator)
+    )
+
+    wait_on_sdf = RegisterEventHandler(
+        OnProcessExit(
+            target_action=world_sdf_xacro,
+            on_exit=[gazebo_server]
+        )
     )
 
     remove_temp_sdf_file = RegisterEventHandler(event_handler=OnShutdown(
@@ -284,8 +292,9 @@ def generate_launch_description():
     ld.add_action(set_env_vars_resources)
     ld.add_action(world_sdf_xacro)
     ld.add_action(remove_temp_sdf_file)
+    ld.add_action(wait_on_sdf)
     ld.add_action(gz_robot)
-    ld.add_action(gazebo_server)
+    # ld.add_action(gazebo_server)
     ld.add_action(gazebo_client)
 
     # Add the actions to launch all of the navigation nodes
