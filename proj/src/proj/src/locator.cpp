@@ -118,14 +118,16 @@ public:
           // else laser_at_free_hash[std::make_pair(round_hit_x, round_hit_y)] += 1;
 
           if (temp_found_hash.find(std::make_pair(round_hit_x, round_hit_y)) == temp_found_hash.end()) temp_found_hash[std::make_pair(round_hit_x, round_hit_y)] = 1;
-          else temp_found_hash[std::make_pair(round_hit_x, round_hit_y)] += 1;
+          else {
+            if (temp_found_hash[std::make_pair(round_hit_x, round_hit_y)] < MAX_HIT_PER_SCAN) temp_found_hash[std::make_pair(round_hit_x, round_hit_y)] += 1;
+          }
         }
       }
     }
 
     if (found_something_new) {
       // check temp hash and update main hash
-      RCLCPP_WARN(this->get_logger(), "Detected at location(s):");
+      RCLCPP_WARN(this->get_logger(), "Potential location(s) scanned:");
       for (const auto& entry : temp_found_hash) {
         RCLCPP_WARN(this->get_logger(), " - (%d, %d), hit %d times", entry.first.first, entry.first.second, entry.second);
         if (laser_at_free_hash.find(entry.first) == laser_at_free_hash.end()) laser_at_free_hash[entry.first] = entry.second;
@@ -227,7 +229,7 @@ public:
   }
 
   void PrintScanHash() {
-    RCLCPP_WARN(this->get_logger(), "CURRENT SCAN HASH LOCATIONS:");
+    RCLCPP_WARN(this->get_logger(), "CURRENT TOTAL SCAN COUNTS:");
     for (const auto& entry : laser_at_free_hash) {
       RCLCPP_WARN(this->get_logger(), " - (%d, %d): %d times", entry.first.first, entry.first.second, entry.second);
     }
@@ -283,14 +285,18 @@ public:
 
     RCLCPP_WARN(this->get_logger(), "FOUND EXPECTED LOCATIONS:");
     if (h1_found) {
-      RCLCPP_WARN(this->get_logger(), " - H1: (%f, %f)", h1.x, h1.y);
+      RCLCPP_WARN(this->get_logger(), " - H1: (%d, %d)", (int)h1.x, (int)h1.y);
     }
     if (h2_found) {
-      RCLCPP_WARN(this->get_logger(), " - H2: (%f, %f)", h2.x, h2.y);
+      RCLCPP_WARN(this->get_logger(), " - H2: (%d, %d)", (int)h2.x, (int)h2.y);
     }
   }
 
   void PrintConfirmedLocations() {
+    if (confirmed_locations.size() == 0) {
+      RCLCPP_WARN(this->get_logger(), "NO NEW LOCATIONS DETERMINED.");
+      return;
+    }
     RCLCPP_WARN(this->get_logger(), "CONFIRMED NEW LOCATIONS:");
     for (const auto& loc : confirmed_locations) {
       RCLCPP_WARN(this->get_logger(), " - (%d, %d)", loc.first, loc.second);
@@ -310,6 +316,7 @@ private:
 
   const float HIT_THRESH = 0.5; // meters
   const float RANGE_THRESH = 5; // meters
+  const int MAX_HIT_PER_SCAN = 7; // max hits to consider on a single position per scan
 
   // new location detection
   std::map<std::pair<int, int>, int> laser_at_free_hash;
@@ -345,7 +352,7 @@ geometry_msgs::msg::Pose::SharedPtr setPose(float x, float y, float yaw_rad) {
 
 int main(int argc, char ** argv)
 {
-  ////////// MAIN OPERATIONS //////////
+  ////////// STARTUP //////////
 
   rclcpp::init(argc,argv);
   Locator locator(true,false); // create node with debug info but not verbose
@@ -353,27 +360,13 @@ int main(int argc, char ** argv)
   locator.SetInitialPose(init);
   locator.WaitUntilNav2Active();
 
-
-
   ////////// MAIN OPERATIONS //////////
-
-  /*
-  
-  notes:
-  - does a pretty good job of picking up now
-  - does seem to do a poor job when scanning while turning
-  - if scanning while moving, prob only scan moving in straight line
-  
-  */
 
   // warmup spin
   locator.Spin(M_PI/2);
   while ( ! locator.IsTaskComplete() ) {}
   locator.Spin(-M_PI/2);
   while ( ! locator.IsTaskComplete() ) {}
-
-  // 
-  //printf("Starting num ppl not seen at expected: %d\n", locator.NumPeopleNotAtExpected());
 
   // check expected locations (set mode as well)
   locator.setSearchingForExpected(true);
@@ -387,29 +380,61 @@ int main(int argc, char ** argv)
     return 0;
   }
 
-  // // otherwise, search the environment
-  // locator.setSearchingForExpected(false);
-  // std::vector<geometry_msgs::msg::Pose> poses = {
-  //   *setPose(0, 0, 180*M_PI/180.0),
-  //   *setPose(-5.5, 0, 180*M_PI/180.0),
-  //   *setPose(-5.5, -24, 270*M_PI/180.0),
-  //   *setPose(0, -24, 90*M_PI/180.0),
-  // };
+  // otherwise, search the environment
+  locator.setSearchingForExpected(false);
+  std::vector<geometry_msgs::msg::Pose> poses = { // all poses we want to visit
+    *setPose(-13,24,90*M_PI/180.0),
+    *setPose(-8,24,0*M_PI/180.0),
+    *setPose(-8,21,270*M_PI/180.0),
+    *setPose(-5,21,0*M_PI/180.0),
+    *setPose(-5,24,90*M_PI/180.0),
+    *setPose(-2,24,0*M_PI/180.0),
+    *setPose(0,22,0*M_PI/180.0),
+    *setPose(10,22,0*M_PI/180.0),
+    *setPose(10,14,270*M_PI/180.0),
+    *setPose(-8,13,180*M_PI/180.0),
+    *setPose(-8,6,90*M_PI/180.0),
+    *setPose(14,6,0*M_PI/180.0),
+    *setPose(6,6,180*M_PI/180.0),
+    *setPose(6,1,270*M_PI/180.0),
+    *setPose(11,1,0*M_PI/180.0),
+    *setPose(11,-12,270*M_PI/180.0),
+    *setPose(9,-12,180*M_PI/180.0),
+    *setPose(11,-18,270*M_PI/180.0),
+    *setPose(11,-23.5,0*M_PI/180.0),
+    *setPose(2,-23.5,180*M_PI/180.0),
+    *setPose(2,-4,90*M_PI/180.0),
+    *setPose(5,-2,90*M_PI/180.0),
+    *setPose(0,2,180*M_PI/180.0),
+    *setPose(-6,-1,270*M_PI/180.0),
+    *setPose(-6,-23.5,270*M_PI/180.0),
+    *setPose(-13,-23.5,180*M_PI/180.0),
+    *setPose(-13,0,90*M_PI/180.0),
+    *setPose(-10,2,0*M_PI/180.0)
+  };
 
-  // for ( auto pose : poses ) {
-  //   locator.GoToPose(std::make_shared<geometry_msgs::msg::Pose>(pose));
-  //   while ( ! locator.IsTaskComplete() ) {locator.InspectRoom(); }
-  //   locator.PrintScanHash();
-  //   if ((int)locator.GetConfirmedLocations().size() >= locator.NumPeopleNotAtExpected()) {
-  //     printf("Found all ppl\n");
-  //     locator.CancelTask();
-  //     locator.PrintFoundExpectedLocations();
-  //     locator.PrintConfirmedLocations();
-  //     break;
-  //   }
-  // }
+  // visit all poses until all ppl found or poses exhausted
+  for ( auto pose : poses ) {
+    locator.GoToPose(std::make_shared<geometry_msgs::msg::Pose>(pose));
+    while ( ! locator.IsTaskComplete() ) {locator.InspectRoom(); }
+    locator.PrintScanHash();
+    if ((int)locator.GetConfirmedLocations().size() >= locator.NumPeopleNotAtExpected()) {
+      printf("Found all people\n");
+      locator.CancelTask();
+      locator.PrintFoundExpectedLocations();
+      locator.PrintConfirmedLocations();
+      break;
+    }
+  }
 
   ////////// RETURN AND SHUTDOWN //////////
+
+  if ((int)locator.GetConfirmedLocations().size() < locator.NumPeopleNotAtExpected()) {
+    printf("Did not find all people :(\n");
+    locator.CancelTask();
+    locator.PrintFoundExpectedLocations();
+    locator.PrintConfirmedLocations();
+  }
 
   locator.GoToPose(init);
   while ( ! locator.IsTaskComplete() ) {}
