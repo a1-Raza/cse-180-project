@@ -1,3 +1,5 @@
+poses we plan to check for sweep:
+
 (-13,12,90*M_PI/180)
 (-13,24,90*M_PI/180)
 (-8,24,0*M_PI/180)
