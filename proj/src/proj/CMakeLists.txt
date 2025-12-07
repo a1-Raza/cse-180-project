@@ -17,6 +17,8 @@ find_package(nav2_msgs REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(lifecycle_msgs REQUIRED)
 find_package(action_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 
 add_library(navigator src/navigation.cpp)
@@ -35,7 +37,7 @@ target_compile_features(locator PUBLIC c_std_99 cxx_std_17)  # Require C99 and C
 ament_target_dependencies(navigator rclcpp geometry_msgs lifecycle_msgs rclcpp_action nav2_msgs)
 ament_export_targets(navigatorlib HAS_LIBRARY_TARGET)
 ament_export_dependencies(rclcpp geometry_msgs lifecycle_msgs rclcpp_action nav2_msgs)
-ament_target_dependencies(locator rclcpp geometry_msgs lifecycle_msgs rclcpp_action nav2_msgs tf2)
+ament_target_dependencies(locator rclcpp geometry_msgs lifecycle_msgs rclcpp_action nav2_msgs tf2 sensor_msgs visualization_msgs)
 
 install(
   TARGETS navigator
